@@ -9,6 +9,7 @@ from Node import Node
 from Path import Path
 
 
+
 class Fitness:    #각 개체에 대한 적합도를 관리
 
     def __init__(self, route):
