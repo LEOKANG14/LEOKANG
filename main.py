@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 from importlib.resources import path
-from program_v3_0 import Program
+from program import Program
 from Path import Path
 import random
 
@@ -35,7 +35,7 @@ print(result_6)
 #result_8 = program.calculate_DR_1_path([3, 15, 8], result_2)
 #print("bike_a_path(bike_num, dpt_node, target_node, arv_node, bike_dist):", result_8)
 # [1, 20, 18, 9, 19]
-input_list_2 =[4, 5, 10, 9, 2, 13, 6, 8, 12, 11, 15, 20, 16, 14, 17, 3, 18, 19, 7, 1]
+input_list_2 =[17, 15, 11, 9, 10, 4, 12, 14, 7, 1, 3, 20, 8, 13, 5, 2, 18, 6, 16, 19]
 input_list = random.sample(range(1,21),20)
 print('input_list:', input_list)
 
