@@ -14,12 +14,15 @@ class Program:
     def __init__(self):
         reader = CSVReader()     #CSV 파일 읽어옴
         self.tau_graph = reader.load_csv('tau_v2.csv')
-        self.taup_graph = reader.load_csv('taup_v2.csv')
+        self.taup_graph = reader.load_csv('taup_v2.csv')  #DR
+        #self.taupp_graph   UAV용
         self.tau_graph.init_nearest_nodes()     #nearest 노드로 정렬 초기화
         self.taup_graph.init_nearest_nodes()
 
         self.DR_path_list : list[Path] = []     #리스트 타입 지정
         self.UAV_path_list : list[Path] = []
+
+        self.update_fail_node_list = []
 
 
     def get_available_DR_path(self, target_node):     #DR_path_list 중에 target 노드와 가장 가까운 마지막 노드를 가진 available_DR_path를 출력
@@ -27,7 +30,7 @@ class Program:
         min_dist = INFINITE
         
         for DR_path in self.DR_path_list:
-            if DR_path.left_parcel == 0:
+            if DR_path.left_parcel == 0 or DR_path.dpt_idx == -1:
                 continue
             last_node = DR_path.nodes[-1]
             dist = self.taup_graph.get_distance(last_node, target_node)
@@ -36,6 +39,22 @@ class Program:
                 available_DR_path = DR_path
         
         return available_DR_path
+
+
+    def get_nearest_UAV_path(self, target_node)->Path:     #가장 가까운 UAV_path를 찾는다
+        nearest_UAV_path = None
+        min_dist = INFINITE
+        
+        for UAV_path in self.UAV_path_list:
+            if UAV_path.dpt_idx == -1:
+                continue
+            last_node = UAV_path.nodes[-1]
+            dist = self.taup_graph.get_distance(last_node, target_node)
+            if dist < min_dist:
+                min_dist = dist
+                nearest_UAV_path = UAV_path
+        
+        return nearest_UAV_path
 
 
     def get_SK_node_list(self):     #DR_path_list와 UAV_path_list의 nodes를 녹여합쳐서 SK_node_list를 출력
@@ -54,6 +73,8 @@ class Program:
         greedy_truck_nodes_list = [node.node_num for node in self.tau_graph.nodes]    #[0, 1, 2, 3, 4, ...]
         
         for SK_node_num in current_SK_node_list:
+            if greedy_truck_nodes_list.count(SK_node_num) == 0:
+                continue
             greedy_truck_nodes_list.remove(SK_node_num)
         
         return greedy_truck_nodes_list    #[ 0, 1, 2, 4, 5, 6, 7, ...]
@@ -66,10 +87,10 @@ class Program:
         node_cnt = len(greedy_truck_nodes_list)
         current_node = depot_node
         
-        for j in range(node_cnt-1):
+        for _ in range(node_cnt-2):
             min_dist = INFINITE
             next_node = None
-            for i in range(node_cnt):
+            for i in range(node_cnt-1):
                 if greedy_truck_nodes_list[i] in visit_node.keys():
                     continue
                 cur_distance = self.tau_graph.get_distance(current_node, greedy_truck_nodes_list[i])
@@ -79,7 +100,8 @@ class Program:
             visit_node[next_node] = True
             greedy_path.append(next_node)
             current_node = next_node    #current_node를 출발점 기준으로 고정
-        greedy_path.append(0)
+
+        greedy_path.append(len(self.tau_graph.nodes)-1)
         print("truck_path", greedy_path)
         
         return greedy_path                
@@ -123,17 +145,42 @@ class Program:
             if path == attachable_path:
                 continue
             if path.arv_idx == check_node:
-                res = False
-        
+                res = False        
+
         return res
-    
-    
+
+ 
+    def update(self, target_node):
+        check_node_list = []
+        for path in self.DR_path_list:
+            check_node_list.extend(path.nodes)
+        for path in self.UAV_path_list:
+            check_node_list.extend(path.nodes)
+
+        self.DR_path_list.clear()
+        self.UAV_path_list.clear()
+
+        check_node_list = list(set(check_node_list))
+        for idx, check_node in enumerate(check_node_list):
+            SK_node_cand_list = check_node_list[idx+1:]
+            SK_node_cand_list.append(target_node)
+            self.choose_SK_usage(check_node, SK_node_cand_list, 'update')
+
+
     def decision_best_path(self, check_node_list):     #input_list가 들어올 때 앞 노드부터 넣어가면서 
         
         for check_node in check_node_list:
-            if self.is_check_node_available_in_dpt(check_node):
-                self.choose_SK_usage(check_node)     #check_node를 Truck, DR, UAV중에 하나로 배정한다
-
+            #if self.is_check_node_available_in_dpt(check_node):
+            self.update(check_node)
+            self.choose_SK_usage(check_node, [])     #check_node를 Truck, DR, UAV중에 하나로 배정한다
+            print("DR_path:")
+            for path in self.DR_path_list:
+                print(path.nodes)
+            print("UAV_path:")
+            for path in self.UAV_path_list:
+                print(path.nodes)
+            self.update_fail_node_list.clear()
+            
 
     def assign_node(self, path : Path, path_info):     #_path_info에 있는 노드를 path에 배정한다
         nodes = path_info[1]     #_path_info의 shortest_path를 선택
@@ -170,6 +217,7 @@ class Program:
         if DR_path_info_when_DR == None and UAV_path_info_when_UAV == None:     #둘다 배정되지 않으면 현재 sequence 취소
             which_SK = ''
             start, end = -1, -1
+            return False
         elif DR_path_info_when_DR == None:     #DR에 배정되지 않으면, UAV로 배정
             which_SK, start, end = self.assign_node(UAV_path, UAV_path_info_when_UAV)
         elif UAV_path_info_when_UAV == None:     #UAV에 배정되지 않으면, DR로 배정
@@ -179,21 +227,7 @@ class Program:
         else:
             which_SK, start, end = self.assign_node(UAV_path, UAV_path_info_when_UAV)     #DR의 Total_dist가 UAV의 Total_dist 보다 크면, UAV로 배정
 
-        return  which_SK, start, end
-
-
-    def get_nearest_UAV_path(self, target_node)->Path:     #가장 가까운 UAV_path를 찾는다
-        nearest_UAV_path = None
-        min_dist = INFINITE
-        
-        for UAV_path in self.UAV_path_list:
-            last_node = UAV_path.nodes[-1]
-            dist = self.taup_graph.get_distance(last_node, target_node)
-            if dist < min_dist:
-                min_dist = dist
-                nearest_UAV_path = UAV_path
-        
-        return nearest_UAV_path
+        return True
 
 
     def get_nearest_DR_path_with_UAVs(self, target_node, nearest_UAV_node)->Path:     #UAV노드에서 가장 가까운 DR_path 찾는다
@@ -216,29 +250,40 @@ class Program:
     def update_num_of_SK_at_nodes(self, greedy_path : list):
         num_of_DR = Node.total_DR
         for node in greedy_path:
-          for path in self.DR_path_list:
-            if greedy_path.count(path.arv_idx) == 0:
-                return
-            is_reversed = greedy_path.index(path.dpt_idx) > greedy_path.index(path.arv_idx)
-            if node == path.dpt_idx:
-                num_of_DR = num_of_DR + 1 if is_reversed else num_of_DR - 1
-            elif node == path.arv_idx:
-                num_of_DR = num_of_DR - 1 if is_reversed else num_of_DR + 1
+            for path in self.DR_path_list:
+                if greedy_path.count(path.arv_idx) == 0:
+                    return
+                is_reversed = greedy_path.index(path.dpt_idx) > greedy_path.index(path.arv_idx)
+                if node == path.dpt_idx:
+                    num_of_DR = num_of_DR + 1 if is_reversed else num_of_DR - 1
+                elif node == path.arv_idx:
+                    num_of_DR = num_of_DR - 1 if is_reversed else num_of_DR + 1
             self.tau_graph.set_num_of_SK('DR', node, num_of_DR)
             assert 0 <= num_of_DR <= Node.total_DR, 'num_of_DR : ' + str(num_of_DR)
+        
+        num_of_DR_list = []
+        for path in greedy_path:
+            num_of_DR_list.append(self.tau_graph.get_node(path).num_of_DR)
 
         num_of_UAV = Node.total_UAV
         for node in greedy_path:
-          for path in self.UAV_path_list:
-            if greedy_path.count(path.arv_idx) == 0:
-                return
-            is_reversed = greedy_path.index(path.dpt_idx) > greedy_path.index(path.arv_idx)
-            if node == path.dpt_idx:
-                num_of_UAV = num_of_UAV + 1 if is_reversed else num_of_UAV - 1
-            elif node == path.arv_idx:
-                num_of_UAV = num_of_UAV - 1 if is_reversed else num_of_UAV + 1
+            for path in self.UAV_path_list:
+                if greedy_path.count(path.arv_idx) == 0:
+                    return
+                is_reversed = greedy_path.index(path.dpt_idx) > greedy_path.index(path.arv_idx)
+                if node == path.dpt_idx:
+                    num_of_UAV = num_of_UAV + 1 if is_reversed else num_of_UAV - 1
+                elif node == path.arv_idx:
+                    num_of_UAV = num_of_UAV - 1 if is_reversed else num_of_UAV + 1
             self.tau_graph.set_num_of_SK('UAV', node, num_of_UAV)
             assert 0 <= num_of_UAV <= Node.total_UAV, 'num_of_UAV : ' + str(num_of_UAV)
+
+        num_of_UAV_list = []
+        for path in greedy_path:
+            num_of_UAV_list.append(self.tau_graph.get_node(path).num_of_UAV)
+
+#        print("dr_count", num_of_DR_list)
+#        print("uav_count", num_of_UAV_list)
     
     '''
     매개변수로 전달받은 check_node에 대해서 DR, UAV 혹은 truck 중 어떤 경로에 포함될 것인지를 판단한다.
@@ -249,9 +294,11 @@ class Program:
     [Output]
     - check_node가 DR, UAV 중 어떤 경로에 포함되거나, 모두 포함되지 않을지의 여부
     '''
-    def choose_SK_usage(self, check_node):     #check_node를 Truck, DR, UAV중에 하나로 배정한다
-        SK_node_cand_list = self.get_SK_node_list()     #[3,8]
-        SK_node_cand_list.append(check_node)     #[3,8,15]
+    def choose_SK_usage(self, check_node, SK_node_cand_list : list = [], mode = ''):     #check_node를 Truck, DR, UAV중에 하나로 배정한다
+        SK_node_cand_list.extend(self.get_SK_node_list())     #[3,8]
+        SK_node_cand_list.extend(self.update_fail_node_list)
+        if SK_node_cand_list.count(check_node) == 0:
+            SK_node_cand_list.append(check_node)     #[3,8,15]
 
         #A. check_node가 트럭에 있을 때 총 거리
         truck_node_list_when_truck = self.greedy_truck_node_list(self.get_SK_node_list())
@@ -281,26 +328,23 @@ class Program:
                 if (UAV_path_info_when_UAV2 != None):     #UAV_path_info_when_UAV2가 존재하면     
                     if UAV_path_info_when_UAV == None or (UAV_path_info_when_UAV2[2] < UAV_path_info_when_UAV[2]):     #기존 UAV_path가 없거나 new_UAV_path가 더 작으면
                         UAV_path_info_when_UAV = UAV_path_info_when_UAV2     #덮어씌운다
-                        nearest_DR_path.left_parcel -= 1     #left_parcel을 -1 해준다
+                        if DR_path_info_when_DR != None:
+                            if DR_path_info_when_DR[2] > UAV_path_info_when_UAV[2]:
+                                nearest_DR_path.left_parcel -= 1     #left_parcel을 -1 해준다
+                        else:
+                            nearest_DR_path.left_parcel -= 1  
+                    else:
+                        UAV_path = None    
                 else:
                     UAV_path = None     #UAV_path_info_when_UAV2가 존재하지 않으면 None
             else:
                 UAV_path = None     #가장 가까운 DR_path가 존재하지 않으면 None    
-        which_SK, start, end = self.assign_DR_UAV(DR_path, DR_path_info_when_DR, UAV_path, UAV_path_info_when_UAV)
-        # if which_SK =='DR':     #DR 일 때, start, end, target_sk_nodes의 인덱스
-        #     start = greedy_path_when_DR.index(start)
-        #     end = greedy_path_when_DR.index(end)
-        #     target_SK_nodes = greedy_path_when_DR[start:end]
-        # elif which_SK =='UAV':     #UAV 일 때, start, end, target_sk_nodes의 인덱스
-        #     start = greedy_path_when_UAV.index(start)
-        #     end = greedy_path_when_UAV.index(end)
-        #     target_SK_nodes = greedy_path_when_UAV[start:end]
-        # if which_SK != '':     #which_SK가 존재하면???
-        #     self.tau_graph.decrease_num_of_SK(which_SK, target_SK_nodes)     #graph_info에 직접 접근
-        
-        
-        
+        is_assigned = self.assign_DR_UAV(DR_path, DR_path_info_when_DR, UAV_path, UAV_path_info_when_UAV)
 
+        if is_assigned == False and mode == 'update':
+            self.update_fail_node_list.append(check_node)
+
+        
     
     def calculate_DR_path(self, check_node, greedy_path, avail_path):     #DR으로 배정될 때 계산 + 기존 DR에 붙을 때도 고려
         DR_pathes = [ ]
@@ -364,9 +408,12 @@ class Program:
         search_nodes = greedy_path[greedy_path.index(dpt_node):]
         for node_idx in search_nodes:
             num_of_SK = self.tau_graph.get_node(node_idx).get_num_of_SK(SK.SK_num) - 1
+            if num_of_SK == -1:
+                break
             self.tau_graph.set_num_of_SK(SK.SK_num, node_idx, num_of_SK)
             if num_of_SK == 0:
                 break
+
         
         return dpt_node
 
@@ -408,71 +455,46 @@ class Program:
         #cand_node_list = ["cand_node_list:"]
         #arv_node_list = ["arv_node_list:"]
         
-        disabled = SK.clone_disable_nodes()
+ 
         total_SK_dist = 0
     
         min_dist = INFINITE
+        cand_node_list = []
         for node in available_nodes:   #available_nodes 에서 가장 짧은 노드 선택
-            if node in disabled:
-                continue
-
             cur_distance = self.taup_graph.get_distance(target_node, node)
+            cand_node_list.append((node, cur_distance))
 
-            if cur_distance < min_dist:
-                min_dist = cur_distance
-                cand_node = node    #선택하여 cand_node로 선언
+        cand_node_list.sort(key= lambda x:x[1])
+        for cand_node, _ in cand_node_list:
+            ## 거리 따져서 가능여부 결정해야 함, 바이크 배송거리 + total_loading_time < 트럭 배송거리 이어야 함
+            SK_dist = 0
+            SK_path_trying = [dpt_node]
+            SK_path_trying.extend(shortest_path_candi)
+            SK_path_trying.append(cand_node)
+            total_loading_time = 0
+            for idx in range(len(SK_path_trying)-1):   #bike_a_path_trying의 거리 산정
+                cur_node = self.taup_graph.get_node(SK_path_trying[idx])
+                SK_dist += cur_node.get_distance(SK_path_trying[idx+1])
+                total_loading_time += SK.loading_time
+            
+            #truck_dist 산정
+            truck_dist = abs(
+                self.get_truck_cum_dist(greedy_path)[greedy_path.index(cand_node)] - 
+                self.get_truck_cum_dist(greedy_path)[greedy_path.index(dpt_node)]
+                )
 
-        #cand_node_list.append(cand_node)
+            if SK_dist + total_loading_time <= truck_dist:
+                total_SK_dist = SK_dist + total_loading_time
 
-        ## 거리 따져서 가능여부 결정해야 함, 바이크 배송거리 + total_loading_time < 트럭 배송거리 이어야 함
-        SK_dist = 0
-        SK_path_trying = [dpt_node]
-        SK_path_trying.extend(shortest_path_candi)
-        SK_path_trying.append(cand_node)
-        total_loading_time = 0
-        for idx in range(len(SK_path_trying)-1):   #bike_a_path_trying의 거리 산정
-            cur_node = self.taup_graph.get_node(SK_path_trying[idx])
-            SK_dist += cur_node.get_distance(SK_path_trying[idx+1])
-            total_loading_time += SK.loading_time
-        
-        #truck_dist 산정
-        truck_dist = abs(
-            self.get_truck_cum_dist(greedy_path)[greedy_path.index(cand_node)] - 
-            self.get_truck_cum_dist(greedy_path)[greedy_path.index(dpt_node)]
-            )
-
-        disabled.append(cand_node)
-        if SK_dist + total_loading_time <= truck_dist:
-            SK.set_disable_nodes(cand_node)    ############## 바이크 배송이 선택되지 않으면 순환되어야 하는데 그렇지 않음
-            total_SK_dist = SK_dist + total_loading_time
-            for interval_node in greedy_path:
-                if greedy_path.index(interval_node) > greedy_path.index(dpt_node) : 
-                    if greedy_path.index(interval_node) < greedy_path.index(cand_node):
-                        SK.set_disable_nodes(interval_node)
-                        disabled.append(interval_node)
-                    else:
-                        continue
-                else:
-                    continue
-
-                if greedy_path.index(interval_node) < greedy_path.index(dpt_node) : 
-                    if greedy_path.index(interval_node) > greedy_path.index(cand_node):
-                        SK.set_disable_nodes(interval_node)
-                        disabled.append(interval_node)
-                    else:
-                        continue
-                else:
-                    continue
-
-            if greedy_path.index(dpt_node) > greedy_path.index(cand_node):   #순서 맞추기
-                temp = dpt_node
-                dpt_node = cand_node
-                shortest_path_candi.reverse()
-                cand_node = temp
+                if greedy_path.index(dpt_node) > greedy_path.index(cand_node):   #순서 맞추기
+                    temp = dpt_node
+                    dpt_node = cand_node
+                    shortest_path_candi.reverse()
+                    cand_node = temp
+                
+                break
 
             
-            
-        
         shortest_path = [dpt_node]
         shortest_path.extend(shortest_path_candi)
         shortest_path.append(cand_node)
