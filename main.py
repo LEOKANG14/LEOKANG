@@ -35,11 +35,20 @@ print(result_6)
 #result_8 = program.calculate_DR_1_path([3, 15, 8], result_2)
 #print("bike_a_path(bike_num, dpt_node, target_node, arv_node, bike_dist):", result_8)
 # [1, 20, 18, 9, 19]
-input_list_2 =[17, 15, 11, 9, 10, 4, 12, 14, 7, 1, 3, 20, 8, 13, 5, 2, 18, 6, 16, 19]
+input_list_2 = [3, 10, 7, 6, 11, 14, 9, 4, 17, 5, 12, 13, 8, 20, 18, 1, 19, 15, 16, 2]
 input_list = random.sample(range(1,21),20)
 print('input_list:', input_list)
 
-program.decision_best_path(input_list_2)
+program.decision_best_path(input_list, False)
+print('DR: ', len(program.DR_path_list))
+for path in program.DR_path_list:
+    print(path)
+print('UAV: ', len(program.UAV_path_list))
+for path in program.UAV_path_list:
+    print(path)
+
+program = Program()
+program.decision_best_path(input_list, True)
 print('DR: ', len(program.DR_path_list))
 for path in program.DR_path_list:
     print(path)

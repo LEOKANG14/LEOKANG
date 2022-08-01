@@ -23,11 +23,12 @@ class Fitness:    #각 개체에 대한 적합도를 관리
         if self.distance ==0:
             pathDistance = 0
             depot_node = tau_graph.get_node(0)
+            last_depot_node = tau_graph.get_node(21)
             pathDistance += depot_node.get_distance(self.route[0])
             for i in range(0, len(self.route)-1):
                 node = tau_graph.get_node(self.route[i])    #현 노드 기준으로
                 pathDistance += node.get_distance(self.route[i+1])     #다음 노드까지 거리 적산
-            pathDistance += depot_node.get_distance(self.route[-1])
+            pathDistance += last_depot_node.get_distance(self.route[-1])
             self.distance = pathDistance
         
         return self.distance
@@ -111,9 +112,9 @@ def rankRoutes(population):     #population 100개에 대해서 순위를 매김
     for i in range(0,len(population)):
         fitnessResults[i] = Fitness(population[i]).routeFitness()     #dict.를 routeFitness로 채움, {i:routeFitness점수}
     #print(fitnessResults)
-    #a = sorted(fitnessResults.items(), key = operator.itemgetter(1), reverse = True)
+    a = sorted(fitnessResults.items(), key = operator.itemgetter(1), reverse = True)
     #print(a)
-    return sorted(fitnessResults.items(), key = operator.itemgetter(1), reverse = True)     # 점수가 높은 순서대로 정렬
+    return a     # 점수가 높은 순서대로 정렬
 
 
 def selection(popRanked, eliteSize):     #가중 비례, 토너먼트, 랭크 처리된 pop을 입력
@@ -123,12 +124,14 @@ def selection(popRanked, eliteSize):     #가중 비례, 토너먼트, 랭크 �
     df['cum_perc'] = 100*df.cum_sum/df.Fitness.sum()     #각각에 대해 가중치 반영(%)
     for i in range(0, eliteSize):     #선정된 엘리트 수만큼 반복
         selectionResults.append(popRanked[i][0])     #노드 path를 순서대로 넣는다
+    
     for i in range(0, len(popRanked) - eliteSize):     #가장 좋은 값 반환(선택)
         pick = 100*random.random()
         for i in range(0, len(popRanked)):
             if pick <= df.iat[i,3]:     #패스트 인덱싱
                 selectionResults.append(popRanked[i][0])
                 break
+    
     return selectionResults
 
 
@@ -189,8 +192,9 @@ def mutate(individual, mutationRate):     #변이, 로컬 벗어나기 위한 �
 
 def mutatePopulation(population, mutationRate):
     mutatedPop = []
+    mutatedPop.append(population[0])
     
-    for ind in range(0, len(population)):
+    for ind in range(0, len(population)-1):
         mutatedInd = mutate(population[ind], mutationRate)
         mutatedPop.append(mutatedInd)
     return mutatedPop
@@ -243,17 +247,31 @@ taup_graph.init_nearest_nodes()
 
 truck_nodes_list = [node.node_num for node in tau_graph.nodes]     #노드 번호 리스트
 truck_nodes_list.remove(0)
-#print("truck_nodes_list", truck_nodes_list)
+truck_nodes_list.remove(21)
+'''
+print("truck_nodes_list", truck_nodes_list)
 
 temp_0 = initialPopulation_greedy(truck_nodes_list)
-#print("greedy_truck_nodes_list", temp_0)
+print("greedy_truck_nodes_list", temp_0)
 
-temp = initialPopulation(10, temp_0)
-#print(temp)
+temp = initialPopulation_2(10, temp_0)
+print(temp)
 
 temp_2 = rankRoutes(temp)
+print(temp_2)
 
+temp_3 = selection(temp_2, 5)
+print(temp_3)
 
+temp_4 = matingPool(temp, temp_3)
+#print(temp_4)
+
+temp_5 = breedPopulation(temp_4, 5)
+#print(temp_5)
+
+temp_6 = mutatePopulation(temp_5, 0.01)
+print(temp_6)
+'''
 
 #geneticAlgorithm(population=truck_nodes_list, popSize=100, eliteSize=20, mutationRate=0.01, generations=1000)
-geneticAlgorithm_greedy(population=truck_nodes_list, popSize=100, eliteSize=20, mutationRate=0.01, generations=300)
+geneticAlgorithm_greedy(population=truck_nodes_list, popSize=100, eliteSize=20, mutationRate=0.02, generations=1000)
