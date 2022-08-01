@@ -14,6 +14,13 @@ class GraphInfo:
     #그래프 내 노드의 개수
     def get_node_cnt(self):
         return len(self.nodes)
+
+    def set_num_of_SK(self, which_SK, target_node, num_of_SK):
+        if which_SK =='DR':
+            self.nodes[target_node].num_of_DR =num_of_SK
+        elif which_SK =='UAV':
+            self.nodes[target_node].num_of_UAV =num_of_SK
+
     
     #그래프 내 각 노드에서 num_of_SK 감소
     def decrease_num_of_SK(self, which_SK, target_nodes):

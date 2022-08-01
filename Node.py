@@ -1,5 +1,7 @@
 #노드의 속성
 class Node:
+    total_DR = 2
+    total_UAV = 2
     #현재 노드 번호와 각 대상 노드들로의 거리들
     def __init__(self, node_num, distances):
         self.visited = False
@@ -8,8 +10,8 @@ class Node:
         self.clustered = False
         self.return_node = False
         self.connected_return_node = False
-        self.num_of_DR = 1
-        self.num_of_UAV = 1
+        self.num_of_DR = Node.total_DR
+        self.num_of_UAV = Node.total_UAV
         
     #현재 노드에서 특정 대상 노드까지의 거리 반환// getter
     def get_distance(self, index):

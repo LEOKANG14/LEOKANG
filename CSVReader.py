@@ -1,4 +1,5 @@
 import csv
+from turtle import distance
 from Node import Node
 from GraphInfo import GraphInfo
 
@@ -15,9 +16,17 @@ class CSVReader:
             node_idx = 0
             for row in spamreader:
                 distances = [int(x) for x in row]
+                if len(distances) == 0:
+                    break
+                distances.append(distances[0])
                 n = Node(node_idx, distances) #n을 노드로서 속성 부여
                 node_idx += 1
                 nodes.append(n) #노드 리스트에 노드 번호와 그 노드에서 각 대상 노드들로의 거리들을 넣음
-        
+            
+            
+        n = Node(node_idx, nodes[0].distances)
+        nodes.append(n)
+
+
         graph_info = GraphInfo(nodes) #그래프 클래스에 완성된 노드 리스트를 넣음
         return graph_info
