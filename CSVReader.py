@@ -23,7 +23,6 @@ class CSVReader:
                 node_idx += 1
                 nodes.append(n) #노드 리스트에 노드 번호와 그 노드에서 각 대상 노드들로의 거리들을 넣음
             
-            
         n = Node(node_idx, nodes[0].distances)
         nodes.append(n)
 

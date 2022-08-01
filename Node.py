@@ -1,7 +1,7 @@
 #노드의 속성
 class Node:
-    total_DR = 2
-    total_UAV = 2
+    total_DR = 1
+    total_UAV = 1
     #현재 노드 번호와 각 대상 노드들로의 거리들
     def __init__(self, node_num, distances):
         self.visited = False
